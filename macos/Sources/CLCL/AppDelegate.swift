@@ -103,6 +103,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   keyEquivalent: "")
         register.target = self
         templatesMenu.addItem(register)
+        let importDat = NSMenuItem(title: "Windowsの.datファイルからインポート…",
+                                   action: #selector(importDatFile),
+                                   keyEquivalent: "")
+        importDat.target = self
+        templatesMenu.addItem(importDat)
         if !store.templates.isEmpty {
             let deleteMenu = NSMenu()
             for (i, item) in store.templates.enumerated() {
@@ -174,6 +179,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func requestAccessibility() {
         Paster.requestPermission()
+    }
+
+    /// Import items from an original CLCL data file (history.dat / regist.dat
+    /// or a dated backup) into the templates.
+    @objc private func importDatFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "CLCLのdatファイル(history.dat / regist.dat / バックアップ)を選択"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let items = DatFile.read(url: url)
+        for item in items {
+            store.addTemplate(item)
+        }
+        let alert = NSAlert()
+        alert.messageText = items.isEmpty ? "インポートできる項目がありませんでした"
+                                          : "\(items.count)件を定型文にインポートしました"
+        alert.informativeText = items.isEmpty
+            ? "テキスト形式(TEXT / UNICODE TEXT)のみ対応しています。"
+            : url.lastPathComponent
+        alert.runModal()
     }
 
     /// Open the folder where CLCL.ini is looked for, so a Windows ini can be dropped in.
