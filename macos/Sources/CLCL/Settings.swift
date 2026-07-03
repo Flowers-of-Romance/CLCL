@@ -22,10 +22,17 @@ final class Settings {
     var thumbWidth: CGFloat = 80
     var thumbHeight: CGFloat = 80
     var showTooltip = true
-    var hotKeyModifiers = UInt32(optionKey)
-    var hotKeyCode = UInt32(kVK_ANSI_C)
-    /// Human-readable hotkey, for display in the menu.
-    var hotKeyLabel = "⌥C"
+    struct HotKeySpec {
+        let modifiers: UInt32
+        let keyCode: UInt32
+        let label: String
+    }
+
+    /// Popup hotkeys; the original allows several ([action] entries).
+    var hotKeys = [HotKeySpec(modifiers: UInt32(optionKey),
+                              keyCode: UInt32(kVK_ANSI_C),
+                              label: "⌥C")]
+    var hotKeyLabel: String { hotKeys.map(\.label).joined(separator: " / ") }
     /// Non-nil when an ini file was found and loaded.
     private(set) var iniURL: URL?
 
@@ -56,10 +63,11 @@ final class Settings {
         loadHotkey(ini)
     }
 
-    /// Find the first enabled popup-menu hotkey in [action]
+    /// Collect all enabled popup-menu hotkeys from [action]
     /// (action-N == ACTION_POPUPMEMU(0), type-N == ACTION_TYPE_HOTKEY(0)).
     private func loadHotkey(_ ini: IniFile) {
         guard let cnt = ini.int("action", "cnt"), cnt > 0 else { return }
+        var found: [HotKeySpec] = []
         for i in 0..<cnt {
             guard ini.int("action", "action-\(i)") == 0,
                   ini.int("action", "type-\(i)") == 0,
@@ -77,11 +85,10 @@ final class Settings {
             if mods & Settings.MOD_WIN != 0 { carbon |= UInt32(cmdKey); label += "⌘" }
             guard carbon != 0 else { continue } // unmodified keys would swallow normal typing
 
-            hotKeyModifiers = carbon
-            hotKeyCode = key
-            hotKeyLabel = label + String(UnicodeScalar(UInt8(vk)))
-            return
+            found.append(HotKeySpec(modifiers: carbon, keyCode: key,
+                                    label: label + String(UnicodeScalar(UInt8(vk)))))
         }
+        if !found.isEmpty { hotKeys = found }
     }
 
     /// Windows virtual-key code (= ASCII for A-Z/0-9) to Carbon key code.

@@ -4,7 +4,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let store = HistoryStore()
     private var watcher: ClipboardWatcher!
-    private var hotKey: HotKey!
+    private var hotKeys: [HotKey] = []
 
     /// The app that was frontmost when the popup opened — paste target.
     private var pasteTarget: NSRunningApplication?
@@ -27,9 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Default ⌥C (mirroring the original Alt+C), overridable via CLCL.ini
-        hotKey = HotKey(keyCode: Settings.shared.hotKeyCode,
-                        modifiers: Settings.shared.hotKeyModifiers) { [weak self] in
-            self?.showPopupMenu()
+        hotKeys = Settings.shared.hotKeys.map { spec in
+            HotKey(keyCode: spec.keyCode, modifiers: spec.modifiers) { [weak self] in
+                self?.showPopupMenu()
+            }
         }
 
         if !Paster.canPaste {
