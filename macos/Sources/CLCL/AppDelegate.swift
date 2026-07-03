@@ -3,6 +3,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let store = HistoryStore()
+    private let templates = TemplateStore()
     private var watcher: ClipboardWatcher!
     private var hotKeys: [HotKey] = []
 
@@ -81,49 +82,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        // Templates (定型文)
+        // Templates (定型文) — read live from the templates folder
         let templatesItem = NSMenuItem(title: "定型文", action: nil, keyEquivalent: "")
-        let templatesMenu = NSMenu()
-        if store.templates.isEmpty {
-            let empty = NSMenuItem(title: "(未登録)", action: nil, keyEquivalent: "")
-            empty.isEnabled = false
-            templatesMenu.addItem(empty)
-        }
-        for (i, item) in store.templates.enumerated() {
-            let mi = NSMenuItem(title: item.menuTitle,
-                                action: #selector(selectTemplateItem(_:)),
-                                keyEquivalent: "")
-            mi.target = self
-            mi.tag = i
-            if let thumb = item.menuImage() { mi.image = thumb }
-            templatesMenu.addItem(mi)
-        }
-        templatesMenu.addItem(.separator())
-        let register = NSMenuItem(title: "現在のクリップボードを登録",
-                                  action: #selector(registerTemplate),
-                                  keyEquivalent: "")
-        register.target = self
-        templatesMenu.addItem(register)
-        let importDat = NSMenuItem(title: "Windowsの.datファイルからインポート…",
-                                   action: #selector(importDatFile),
-                                   keyEquivalent: "")
-        importDat.target = self
-        templatesMenu.addItem(importDat)
-        if !store.templates.isEmpty {
-            let deleteMenu = NSMenu()
-            for (i, item) in store.templates.enumerated() {
-                let mi = NSMenuItem(title: item.menuTitle,
-                                    action: #selector(deleteTemplateItem(_:)),
-                                    keyEquivalent: "")
-                mi.target = self
-                mi.tag = i
-                deleteMenu.addItem(mi)
-            }
-            let deleteItem = NSMenuItem(title: "定型文を削除", action: nil, keyEquivalent: "")
-            deleteItem.submenu = deleteMenu
-            templatesMenu.addItem(deleteItem)
-        }
-        templatesItem.submenu = templatesMenu
+        templatesItem.submenu = buildTemplatesMenu()
         menu.addItem(templatesItem)
 
         menu.addItem(.separator())
@@ -152,6 +113,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(quit)
     }
 
+    private func buildTemplatesMenu() -> NSMenu {
+        let menu = NSMenu()
+        let tree = templates.tree()
+        if tree.isEmpty {
+            let empty = NSMenuItem(title: "(未登録)", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            menu.addItem(empty)
+        } else {
+            addTemplateNodes(tree, to: menu)
+        }
+        menu.addItem(.separator())
+        let register = NSMenuItem(title: "現在のクリップボードを登録",
+                                  action: #selector(registerTemplate),
+                                  keyEquivalent: "")
+        register.target = self
+        menu.addItem(register)
+        let openFolder = NSMenuItem(title: "定型文フォルダを開く(テキストで編集)",
+                                    action: #selector(openTemplatesFolder),
+                                    keyEquivalent: "")
+        openFolder.target = self
+        menu.addItem(openFolder)
+        let importDat = NSMenuItem(title: "Windowsの.datファイルからインポート…",
+                                   action: #selector(importDatFile),
+                                   keyEquivalent: "")
+        importDat.target = self
+        menu.addItem(importDat)
+        if !tree.isEmpty {
+            let deleteMenu = NSMenu()
+            addTemplateNodes(tree, to: deleteMenu, deleting: true)
+            let deleteItem = NSMenuItem(title: "定型文を削除(ゴミ箱へ)", action: nil, keyEquivalent: "")
+            deleteItem.submenu = deleteMenu
+            menu.addItem(deleteItem)
+        }
+        return menu
+    }
+
+    /// Folders become submenus; leaf items carry their file URL.
+    private func addTemplateNodes(_ nodes: [TemplateStore.Node], to menu: NSMenu,
+                                  deleting: Bool = false) {
+        for node in nodes {
+            switch node {
+            case .folder(let title, let children):
+                let mi = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                let sub = NSMenu()
+                addTemplateNodes(children, to: sub, deleting: deleting)
+                mi.submenu = sub
+                menu.addItem(mi)
+            case .item(let title, let url):
+                let mi = NSMenuItem(title: title,
+                                    action: deleting ? #selector(deleteTemplateItem(_:))
+                                                     : #selector(selectTemplateItem(_:)),
+                                    keyEquivalent: "")
+                mi.target = self
+                mi.representedObject = url
+                if Settings.shared.showTooltip, url.pathExtension.lowercased() == "txt",
+                   let text = try? String(contentsOf: url, encoding: .utf8) {
+                    mi.toolTip = String(text.prefix(1000))
+                }
+                menu.addItem(mi)
+            }
+        }
+    }
+
     // MARK: - Actions
 
     @objc private func selectHistoryItem(_ sender: NSMenuItem) {
@@ -160,18 +184,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func selectTemplateItem(_ sender: NSMenuItem) {
-        guard store.templates.indices.contains(sender.tag) else { return }
-        paste(store.templates[sender.tag])
+        guard let url = sender.representedObject as? URL,
+              let item = templates.load(url) else { return }
+        paste(item)
     }
 
     @objc private func deleteTemplateItem(_ sender: NSMenuItem) {
-        store.removeTemplate(at: sender.tag)
+        guard let url = sender.representedObject as? URL else { return }
+        templates.remove(url)
     }
 
     @objc private func registerTemplate() {
         if let item = ClipItem.fromPasteboard(.general) {
-            store.addTemplate(item)
+            templates.add(item)
         }
+    }
+
+    @objc private func openTemplatesFolder() {
+        NSWorkspace.shared.open(templates.dir)
     }
 
     @objc private func clearHistory() {
@@ -193,7 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let items = DatFile.read(url: url)
         for item in items {
-            store.addTemplate(item)
+            templates.add(item)
         }
         let alert = NSAlert()
         alert.messageText = items.isEmpty ? "インポートできる項目がありませんでした"

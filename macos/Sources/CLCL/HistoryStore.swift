@@ -1,16 +1,14 @@
 import Foundation
 
-/// Persists clipboard history and templates (定型文) as JSON under
-/// ~/Library/Application Support/CLCL/.
+/// Persists clipboard history as JSON under ~/Library/Application Support/CLCL/.
+/// Templates (定型文) live in TemplateStore as plain files.
 final class HistoryStore {
     private(set) var history: [ClipItem] = []
-    private(set) var templates: [ClipItem] = []
 
     var maxHistory: Int { Settings.shared.maxHistory }
 
     private let dir: URL
     private var historyFile: URL { dir.appendingPathComponent("history.json") }
-    private var templatesFile: URL { dir.appendingPathComponent("templates.json") }
 
     init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory,
@@ -36,37 +34,17 @@ final class HistoryStore {
         save()
     }
 
-    func addTemplate(_ item: ClipItem) {
-        templates.removeAll { $0 == item }
-        templates.append(item)
-        save()
-    }
-
-    func removeTemplate(at index: Int) {
-        guard templates.indices.contains(index) else { return }
-        templates.remove(at: index)
-        save()
-    }
-
     private func load() {
-        let decoder = JSONDecoder()
         if let data = try? Data(contentsOf: historyFile),
-           let items = try? decoder.decode([ClipItem].self, from: data) {
+           let items = try? JSONDecoder().decode([ClipItem].self, from: data) {
             history = items
-        }
-        if let data = try? Data(contentsOf: templatesFile),
-           let items = try? decoder.decode([ClipItem].self, from: data) {
-            templates = items
         }
     }
 
     private func save() {
-        let encoder = JSONEncoder()
-        if Settings.shared.saveHistory, let data = try? encoder.encode(history) {
+        guard Settings.shared.saveHistory else { return }
+        if let data = try? JSONEncoder().encode(history) {
             try? data.write(to: historyFile, options: .atomic)
-        }
-        if let data = try? encoder.encode(templates) {
-            try? data.write(to: templatesFile, options: .atomic)
         }
     }
 }

@@ -12,7 +12,8 @@ A native macOS re-implementation of [CLCL](https://www.nakka.com/soft/clcl/), th
 - 履歴の項目 1〜9 は数字キーで選択可能
 - 画像はメニュー内にサムネイル表示
 - 定型文(テンプレート)の登録・削除
-- 履歴・定型文は `~/Library/Application Support/CLCL/` に JSON で永続化
+- 定型文は **1件=1テキストファイル**(`~/Library/Application Support/CLCL/templates/*.txt`、UTF-8)。ファイル名がメニューのタイトルになり、Finder・エディタで直接追加・編集可能。サブフォルダはサブメニューになる。`.png` を置けば画像定型文
+- 履歴は `~/Library/Application Support/CLCL/history.json` に永続化
 
 ## ビルド / Build
 
