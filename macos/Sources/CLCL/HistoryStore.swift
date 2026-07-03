@@ -6,10 +6,7 @@ final class HistoryStore {
     private(set) var history: [ClipItem] = []
     private(set) var templates: [ClipItem] = []
 
-    var maxHistory: Int {
-        let v = UserDefaults.standard.integer(forKey: "maxHistory")
-        return v > 0 ? v : 30
-    }
+    var maxHistory: Int { Settings.shared.maxHistory }
 
     private let dir: URL
     private var historyFile: URL { dir.appendingPathComponent("history.json") }
@@ -24,7 +21,9 @@ final class HistoryStore {
     }
 
     func add(_ item: ClipItem) {
-        history.removeAll { $0 == item }
+        if Settings.shared.overlapCheck {
+            history.removeAll { $0 == item }
+        }
         history.insert(item, at: 0)
         if history.count > maxHistory {
             history.removeLast(history.count - maxHistory)
@@ -63,7 +62,7 @@ final class HistoryStore {
 
     private func save() {
         let encoder = JSONEncoder()
-        if let data = try? encoder.encode(history) {
+        if Settings.shared.saveHistory, let data = try? encoder.encode(history) {
             try? data.write(to: historyFile, options: .atomic)
         }
         if let data = try? encoder.encode(templates) {

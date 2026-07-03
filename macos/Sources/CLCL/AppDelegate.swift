@@ -22,10 +22,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         watcher = ClipboardWatcher { [weak self] item in
             self?.store.add(item)
         }
-        watcher.start()
+        if Settings.shared.watchClipboard {
+            watcher.start()
+        }
 
-        // Option+C, mirroring the original Alt+C
-        hotKey = HotKey { [weak self] in
+        // Default ⌥C (mirroring the original Alt+C), overridable via CLCL.ini
+        hotKey = HotKey(keyCode: Settings.shared.hotKeyCode,
+                        modifiers: Settings.shared.hotKeyModifiers) { [weak self] in
             self?.showPopupMenu()
         }
 
@@ -69,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let thumb = item.menuImage() {
                 mi.image = thumb
             }
-            if item.kind == .text, let text = item.text {
+            if Settings.shared.showTooltip, item.kind == .text, let text = item.text {
                 mi.toolTip = String(text.prefix(1000))
             }
             menu.addItem(mi)
@@ -123,6 +126,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         clear.target = self
         menu.addItem(clear)
 
+        let iniState = Settings.shared.iniURL != nil
+            ? "CLCL.ini 読み込み済み(ホットキー: \(Settings.shared.hotKeyLabel))"
+            : "CLCL.ini 未検出(⌥C・デフォルト設定)"
+        let ini = NSMenuItem(title: iniState, action: #selector(openIniFolder), keyEquivalent: "")
+        ini.target = self
+        menu.addItem(ini)
+
         if !Paster.canPaste {
             let perm = NSMenuItem(title: "自動貼り付けを有効化(アクセシビリティ許可)…",
                                   action: #selector(requestAccessibility),
@@ -164,6 +174,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func requestAccessibility() {
         Paster.requestPermission()
+    }
+
+    /// Open the folder where CLCL.ini is looked for, so a Windows ini can be dropped in.
+    @objc private func openIniFolder() {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory,
+                                            in: .userDomainMask).first!
+        NSWorkspace.shared.open(base.appendingPathComponent("CLCL", isDirectory: true))
     }
 
     private func paste(_ item: ClipItem) {

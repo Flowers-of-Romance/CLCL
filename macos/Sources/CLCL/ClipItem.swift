@@ -71,11 +71,13 @@ struct ClipItem: Codable, Equatable {
     }
 
     /// Thumbnail for image items, shown in the menu like the original CLCL.
-    func menuImage(maxSize: CGFloat = 80) -> NSImage? {
+    /// Size follows [menu] bitmap_width/bitmap_height when an ini is loaded.
+    func menuImage() -> NSImage? {
         guard kind == .image, let data = imagePNG, let img = NSImage(data: data) else { return nil }
         let size = img.size
         guard size.width > 0, size.height > 0 else { return nil }
-        let scale = min(maxSize / size.width, maxSize / size.height, 1)
+        let scale = min(Settings.shared.thumbWidth / size.width,
+                        Settings.shared.thumbHeight / size.height, 1)
         let thumb = NSImage(size: NSSize(width: size.width * scale, height: size.height * scale))
         thumb.lockFocus()
         img.draw(in: NSRect(origin: .zero, size: thumb.size))

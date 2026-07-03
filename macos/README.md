@@ -28,13 +28,35 @@ open CLCL.app
 
 ## 設定 / Settings
 
-履歴の最大件数(デフォルト 30):
+### Windows 版 CLCL.ini の読み込み
+
+Windows で使っている **CLCL.ini をそのまま読み込めます**。以下に置いて再起動してください(メニューの「CLCL.ini 未検出…」をクリックするとフォルダが開きます):
+
+```
+~/Library/Application Support/CLCL/CLCL.ini
+```
+
+UTF-16LE(Windows 版が書き出す形式)・UTF-8・Shift_JIS に対応。取り込まれるのは次のキーです:
+
+| ini | 効果 |
+|---|---|
+| `[history] max` | 履歴の最大件数 |
+| `[history] save` | 履歴をファイルに保存するか |
+| `[history] overlap_check` | 重複時に既存項目を先頭へ移動 |
+| `[main] clipboard_watch` | クリップボード監視の ON/OFF |
+| `[menu] bitmap_width` / `bitmap_height` | メニュー内サムネイルのサイズ |
+| `[menu] show_tooltip` | ツールチップ表示 |
+| `[action]` のホットキー定義 | ポップアップのホットキー(Alt→⌥、Ctrl→⌃、Shift→⇧、Win→⌘ に変換) |
+
+それ以外(フォント・色・ウィンドウフィルタ・sendkey・ツール等)は Windows 固有のため無視されます。履歴データ本体(history.dat / regist.dat)は独自バイナリのため読み込み対象外です。
+
+### ini がない場合
+
+デフォルト(履歴 30 件・⌥C)。履歴件数だけなら `defaults` でも変更できます:
 
 ```sh
 defaults write com.nakka.clcl.mac maxHistory 50
 ```
-
-※ `swift run` で起動した場合は `defaults write CLCL maxHistory 50`
 
 ## 自動貼り付けについて / Auto-paste
 
